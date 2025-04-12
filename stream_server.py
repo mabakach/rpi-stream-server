@@ -15,6 +15,8 @@ from threading import Condition
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
+from picamera2.encoders import MJPEGEncoder
+from picamera2.controls import Controls
 
 PAGE = """\
 <html>
@@ -85,13 +87,19 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     daemon_threads = True
 
 picam2 = Picamera2()
-video_config = picam2.create_video_configuration(main={"size": (640, 480)})
-#video_config = picam2.create_video_configuration(main={"size": (2592, 1944)})  #, lores={"size": (640, 480)}, encode="lores")
+#video_config = picam2.create_video_configuration(main={"size": (640, 480)})
+video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format":"YUV420"}, lores={"size": (800, 600), "format":"YUV420"}, encode="lores")
 
+ctrls = Controls(picam2)
+ctrls.AwbEnable = True
+
+
+encoder = MJPEGEncoder(10000000)
 
 picam2.configure(video_config)
 output = StreamingOutput()
-picam2.start_recording(JpegEncoder(), FileOutput(output))
+picam2.set_controls(ctrls)
+picam2.start_recording(encoder, FileOutput(output))
 
 try:
     address = ('', 7123)
