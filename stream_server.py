@@ -25,7 +25,7 @@ PAGE = """\
 </head>
 <body>
 <h1>Picamera2 MJPEG Streaming Demo</h1>
-<img src="stream.mjpg" width="640" height="480" />
+<img src="stream.mjpg" width="800" height="600" />
 </body>
 </html>
 """
@@ -86,20 +86,19 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-picam2 = Picamera2()
+tuning = Picamera2.load_tuning_file("ov5647_noir.json")
+picam2 = Picamera2(tuning=tuning)
 #video_config = picam2.create_video_configuration(main={"size": (640, 480)})
-video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format":"YUV420"}, lores={"size": (800, 600), "format":"YUV420"}, encode="lores")
+#video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format":"YUV420"}, lores={"size": (800, 600), "format":"YUV420"}, encode="lores")
+video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format": 'XRGB8888'}, lores={"size": (800, 600), "format": 'YUV420'}, encode="lores")
 
 ctrls = Controls(picam2)
 ctrls.AwbEnable = True
-
-
 encoder = MJPEGEncoder(10000000)
-
 picam2.configure(video_config)
 output = StreamingOutput()
-picam2.set_controls(ctrls)
 picam2.start_recording(encoder, FileOutput(output))
+picam2.set_controls(ctrls)
 
 try:
     address = ('', 7123)
