@@ -9,14 +9,21 @@ import io
 import logging
 import socketserver
 import time
+import os
 from http import server
 from threading import Condition
 
+from datetime import datetime
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
 from picamera2.encoders import MJPEGEncoder
 from picamera2.controls import Controls
+
+#Configuration start
+picture_path = '/home/birdmin/pictures'
+
+#Configuration end
 
 PAGE = """\
 <html>
@@ -28,6 +35,10 @@ PAGE = """\
 <img src="stream.mjpg" width="800" height="600" />
 </body>
 </html>
+"""
+
+JSON_OK = """
+{'success': 'true'}
 """
 
 class StreamingOutput(io.BufferedIOBase):
@@ -42,6 +53,25 @@ class StreamingOutput(io.BufferedIOBase):
 
 
 class StreamingHandler(server.BaseHTTPRequestHandler):
+
+    def do_POST(self):
+        if self.path == '/savepic':
+            os.makedirs(picture_path, exist_ok=True)
+
+            now = datetime.now()
+            date_time = now.strftime("%Y-%m-%d_%H:%M:%S.%f")
+            file_path = picture_path + "/" + date_time + "_image.jpg"
+            picam2.capture_file(file_path)
+            content = JSON_OK.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', len(content))
+            self.end_headers()
+            self.wfile.write(content)
+        else:
+            self.send_error(404)
+            self.end_headers()
+
     def do_GET(self):
         if self.path == '/':
             self.send_response(301)
@@ -72,7 +102,6 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(frame)
                     self.wfile.write(b'\r\n')
-                    time.sleep(0.1)
             except Exception as e:
                 logging.warning(
                     'Removed streaming client %s: %s',
