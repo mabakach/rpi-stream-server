@@ -12,6 +12,9 @@ import time
 import os
 from http import server
 from threading import Condition
+import board
+import adafruit_dht
+import json
 
 from datetime import datetime
 from picamera2 import Picamera2
@@ -22,6 +25,7 @@ from picamera2.controls import Controls
 
 #Configuration start
 picture_path = '/home/birdmin/pictures'
+dht_data_pin = board.D4
 
 #Configuration end
 
@@ -55,7 +59,7 @@ class StreamingOutput(io.BufferedIOBase):
 class StreamingHandler(server.BaseHTTPRequestHandler):
 
     def do_POST(self):
-        if self.path == '/savepic':
+        if self.path == '/rest/v1/savepic':
             os.makedirs(picture_path, exist_ok=True)
 
             now = datetime.now()
@@ -106,6 +110,23 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
                 logging.warning(
                     'Removed streaming client %s: %s',
                     self.client_address, str(e))
+        elif self.path == '/rest/v1/temperature':
+            try:
+                temperature_c = dhtDevice.temperature
+                temperature_f = temperature_c * (9 / 5) + 32
+                humidity = dhtDevice.humidity
+                data = {"temperature_celsius": temperature_c, "temperature_fahrenheit": temperature_f, "humidity": humidity}
+                content = json.dumps(data)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', len(content))
+                self.end_headers()
+                self.wfile.write(content)
+            except RuntimeError as error:
+                errordata = {"error": "Could not read sensor data, try again in a view seconds!"}
+                content = json.dumps(errordata)
+                self.send_response(500)
+                self.end_headers()
         else:
             self.send_error(404)
             self.end_headers()
@@ -115,12 +136,13 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
+#configure the DHT sensor
+dhtDevice = adafruit_dht.DHT22(dht_data_pin, use_pulseio=False)
+
+# configure and enable the camera
 tuning = Picamera2.load_tuning_file("ov5647_noir.json")
 picam2 = Picamera2(tuning=tuning)
-#video_config = picam2.create_video_configuration(main={"size": (640, 480)})
-#video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format":"YUV420"}, lores={"size": (800, 600), "format":"YUV420"}, encode="lores")
 video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format": 'XRGB8888'}, lores={"size": (800, 600), "format": 'YUV420'}, encode="lores")
-
 ctrls = Controls(picam2)
 ctrls.AwbEnable = True
 encoder = MJPEGEncoder(10000000)
