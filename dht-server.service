@@ -1,0 +1,11 @@
+[Unit]
+ Description=Server for temp/humidity
+
+[Service]
+ User=birdmin
+ WorkingDirectory=/home/birdmin/stream-server
+ ExecStart=/usr/bin/python3 /home/birdmin/stream-server/dht-server.py
+ Restart=always
+
+[Install]
+ WantedBy=multi-user.target

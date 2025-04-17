@@ -1,0 +1,11 @@
+[Unit]
+ Description=Internal camera stream server
+
+[Service]
+ User=birdmin
+ WorkingDirectory=/home/birdmin/stream-server
+ ExecStart=/usr/bin/python3 /home/birdmin/stream-server/stream-server.py
+ Restart=always
+
+[Install]
+ WantedBy=multi-user.target

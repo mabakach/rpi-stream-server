@@ -7,15 +7,17 @@
 
 import io
 import logging
-import socketserver
+import socket
 import time
 import os
-from http import server
-from threading import Condition
 import board
 import adafruit_dht
 import json
-
+import threading
+import socket
+import socketserver
+#import http.server
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
@@ -48,7 +50,7 @@ JSON_OK = """
 class StreamingOutput(io.BufferedIOBase):
     def __init__(self):
         self.frame = None
-        self.condition = Condition()
+        self.condition = threading.Condition()
 
     def write(self, buf):
         with self.condition:
@@ -56,7 +58,7 @@ class StreamingOutput(io.BufferedIOBase):
             self.condition.notify_all()
 
 
-class StreamingHandler(server.BaseHTTPRequestHandler):
+class StreamingHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == '/rest/v1/savepic':
@@ -132,28 +134,51 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
             self.end_headers()
 
 
-class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
-    allow_reuse_address = True
-    daemon_threads = True
+class Thread(threading.Thread):
+    def __init__(self, i):
+        threading.Thread.__init__(self)
+        self.i = i
+        self.daemon = True
+        self.start()
+    def run(self):
+        httpd = HTTPServer(addr, StreamingHandler, False)
 
-#configure the DHT sensor
-dhtDevice = adafruit_dht.DHT22(dht_data_pin, use_pulseio=False)
+        # Prevent the HTTP server from re-binding every handler.
+        # https://stackoverflow.com/questions/46210672/
+        httpd.socket = sock
+        httpd.server_bind = self.server_close = lambda self: None
 
-# configure and enable the camera
-tuning = Picamera2.load_tuning_file("ov5647_noir.json")
-picam2 = Picamera2(tuning=tuning)
-video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format": 'XRGB8888'}, lores={"size": (800, 600), "format": 'YUV420'}, encode="lores")
-ctrls = Controls(picam2)
-ctrls.AwbEnable = True
-encoder = MJPEGEncoder(10000000)
-picam2.configure(video_config)
-output = StreamingOutput()
-picam2.start_recording(encoder, FileOutput(output))
-picam2.set_controls(ctrls)
+        httpd.serve_forever()
 
-try:
-    address = ('', 7123)
-    server = StreamingServer(address, StreamingHandler)
-    server.serve_forever()
-finally:
-    picam2.stop_recording()
+
+if __name__ == '__main__':
+    #configure the DHT sensor
+    dhtDevice = adafruit_dht.DHT22(dht_data_pin, use_pulseio=False)
+
+    # configure and enable the camera
+    tuning = Picamera2.load_tuning_file("ov5647_noir.json")
+    picam2 = Picamera2(tuning=tuning)
+    video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format": 'XRGB8888'}, lores={"size": (800, 600), "format": 'YUV420'}, encode="lores")
+    ctrls = Controls(picam2)
+    ctrls.AwbEnable = True
+    encoder = MJPEGEncoder(10000000)
+    picam2.configure(video_config)
+    output = StreamingOutput()
+    picam2.start_recording(encoder, FileOutput(output))
+    picam2.set_controls(ctrls)
+    
+    try:
+        addr = ('', 7123)
+        sock = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(addr)
+        sock.listen(5)
+
+        [Thread(i) for i in range(6)]
+        while True:
+            time.sleep(10000)
+
+
+    finally:
+        picam2.stop_recording()
+
