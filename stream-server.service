@@ -4,7 +4,7 @@
 [Service]
  User=birdmin
  WorkingDirectory=/home/birdmin/stream-server
- ExecStart=/usr/bin/python3 /home/birdmin/stream-server/stream-server.py
+ ExecStart=/usr/bin/python3 /home/birdmin/stream-server/stream-server.py >>stream-server.log  2>&1
  Restart=always
 
 [Install]
