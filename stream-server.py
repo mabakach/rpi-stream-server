@@ -10,10 +10,7 @@ import logging
 import socket
 import time
 import os
-import board
 import threading
-import socketserver
-#import http.server
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime
 from picamera2 import Picamera2
@@ -40,7 +37,7 @@ PAGE = """\
 """
 
 JSON_OK = """
-{'success': 'true'}
+{"success": true}
 """
 
 class StreamingOutput(io.BufferedIOBase):
@@ -109,8 +106,8 @@ class StreamingHandler(BaseHTTPRequestHandler):
                     'Removed streaming client %s: %s',
                     self.client_address, str(e))
         else:
-        self.send_error(404)
-        self.end_headers()
+            self.send_error(404)
+            self.end_headers()
 
 
 class Thread(threading.Thread):
@@ -131,30 +128,47 @@ class Thread(threading.Thread):
 
 
 if __name__ == '__main__':
-    # configure and enable the camera
-    tuning = Picamera2.load_tuning_file("ov5647_noir.json")
-    picam2 = Picamera2(tuning=tuning)
-    video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format": 'XRGB8888'}, lores={"size": (800, 600), "format": 'YUV420'}, encode="lores")
-    ctrls = Controls(picam2)
-    ctrls.AwbEnable = True
-    encoder = MJPEGEncoder(10000000)
-    picam2.configure(video_config)
-    output = StreamingOutput()
-    picam2.start_recording(encoder, FileOutput(output))
-    picam2.set_controls(ctrls)
+    # Configure logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
     
     try:
+        # configure and enable the camera
+        logger.info("Initializing camera...")
+        tuning = Picamera2.load_tuning_file("ov5647_noir.json")
+        picam2 = Picamera2(tuning=tuning)
+        video_config = picam2.create_video_configuration(main={"size": (2592, 1944), "format": 'XRGB8888'}, lores={"size": (800, 600), "format": 'YUV420'}, encode="lores")
+        ctrls = Controls(picam2)
+        ctrls.AwbEnable = True
+        encoder = MJPEGEncoder(10000000)
+        picam2.configure(video_config)
+        output = StreamingOutput()
+        picam2.start_recording(encoder, FileOutput(output))
+        picam2.set_controls(ctrls)
+        logger.info("Camera initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize camera: {e}")
+        exit(1)
+    
+    try:
+        logger.info("Starting server on port 7123...")
         addr = ('', 7123)
-        sock = socket.socket (socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(addr)
         sock.listen(5)
+        logger.info("Server socket created and listening")
 
         [Thread(i) for i in range(6)]
+        logger.info("Server threads started, server is ready")
         while True:
             time.sleep(10000)
 
-
+    except Exception as e:
+        logger.error(f"Server error: {e}")
     finally:
-        picam2.stop_recording()
+        logger.info("Shutting down...")
+        if 'picam2' in locals():
+            picam2.stop_recording()
+        logger.info("Shutdown complete")
 
