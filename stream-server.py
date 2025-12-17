@@ -11,7 +11,6 @@ import socket
 import time
 import os
 import board
-import adafruit_dht
 import json
 import threading
 import socket
@@ -112,24 +111,7 @@ class StreamingHandler(BaseHTTPRequestHandler):
                 logging.warning(
                     'Removed streaming client %s: %s',
                     self.client_address, str(e))
-        elif self.path == '/rest/v1/temperature':
-            try:
-                temperature_c = dhtDevice.temperature
-                temperature_f = temperature_c * (9 / 5) + 32
-                humidity = dhtDevice.humidity
-                data = {"temperature_celsius": temperature_c, "temperature_fahrenheit": temperature_f, "humidity": humidity}
-                content = json.dumps(data)
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', len(content))
-                self.end_headers()
-                self.wfile.write(content)
-            except RuntimeError as error:
-                errordata = {"error": "Could not read sensor data, try again in a view seconds!"}
-                content = json.dumps(errordata)
-                self.send_response(500)
-                self.end_headers()
-        else:
+          else:
             self.send_error(404)
             self.end_headers()
 
@@ -152,9 +134,6 @@ class Thread(threading.Thread):
 
 
 if __name__ == '__main__':
-    #configure the DHT sensor
-    dhtDevice = adafruit_dht.DHT22(dht_data_pin, use_pulseio=False)
-
     # configure and enable the camera
     tuning = Picamera2.load_tuning_file("ov5647_noir.json")
     picam2 = Picamera2(tuning=tuning)
