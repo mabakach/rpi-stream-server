@@ -11,9 +11,7 @@ import socket
 import time
 import os
 import board
-import json
 import threading
-import socket
 import socketserver
 #import http.server
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -26,7 +24,6 @@ from picamera2.controls import Controls
 
 #Configuration start
 picture_path = '/home/birdmin/pictures'
-dht_data_pin = board.D4
 
 #Configuration end
 
@@ -111,9 +108,9 @@ class StreamingHandler(BaseHTTPRequestHandler):
                 logging.warning(
                     'Removed streaming client %s: %s',
                     self.client_address, str(e))
-          else:
-            self.send_error(404)
-            self.end_headers()
+        else:
+        self.send_error(404)
+        self.end_headers()
 
 
 class Thread(threading.Thread):
